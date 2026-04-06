@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Embedding Demo Chat</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f1117;
+      color: #e8eaf0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    header {
+      width: 100%;
+      max-width: 800px;
+      padding: 18px 24px 12px;
+      border-bottom: 1px solid #1e2130;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    header h1 { font-size: 1.1rem; font-weight: 600; color: #a78bfa; }
+    header span { font-size: 0.75rem; color: #6b7280; }
+
+    .rag-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      color: #9ca3af;
+      cursor: pointer;
+    }
+
+    .rag-toggle input { accent-color: #a78bfa; cursor: pointer; }
+
+    #messages {
+      flex: 1;
+      width: 100%;
+      max-width: 800px;
+      overflow-y: auto;
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .msg {
+      display: flex;
+      flex-direction: column;
+      max-width: 85%;
+      gap: 4px;
+    }
+
+    .msg.user { align-self: flex-end; align-items: flex-end; }
+    .msg.assistant { align-self: flex-start; align-items: flex-start; }
+
+    .bubble {
+      padding: 10px 14px;
+      border-radius: 14px;
+      line-height: 1.55;
+      font-size: 0.92rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .msg.user .bubble {
+      background: #4f46e5;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg.assistant .bubble {
+      background: #1e2130;
+      color: #e8eaf0;
+      border-bottom-left-radius: 4px;
+    }
+
+    .label {
+      font-size: 0.7rem;
+      color: #6b7280;
+      padding: 0 4px;
+    }
+
+    .sources {
+      margin-top: 6px;
+      padding: 8px 12px;
+      background: #151823;
+      border-left: 3px solid #4f46e5;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      color: #9ca3af;
+      max-width: 100%;
+    }
+
+    .sources strong { color: #a78bfa; display: block; margin-bottom: 4px; }
+
+    .source-item {
+      display: flex;
+      gap: 6px;
+      align-items: baseline;
+      margin-top: 3px;
+    }
+
+    .source-image {
+      margin-top: 6px;
+      width: 100%;
+      max-width: 260px;
+      border-radius: 8px;
+      border: 1px solid #2d3148;
+      display: block;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .source-image:hover { opacity: 0.85; }
+
+    /* Lightbox */
+    #lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+    }
+    #lightbox.open { display: flex; }
+    #lightbox img {
+      max-width: 90vw;
+      max-height: 90vh;
+      border-radius: 10px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+    }
+
+    .badge {
+      font-size: 0.65rem;
+      padding: 1px 5px;
+      border-radius: 4px;
+      font-weight: 600;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .badge.text    { background: #1e3a5f; color: #60a5fa; }
+    .badge.image   { background: #3b2060; color: #c084fc; }
+    .badge.video   { background: #1f3a2a; color: #4ade80; }
+    .badge.unknown { background: #2a2a2a; color: #9ca3af; }
+
+    .typing .bubble { color: #6b7280; font-style: italic; }
+
+    #input-area {
+      width: 100%;
+      max-width: 800px;
+      padding: 12px 16px 20px;
+      border-top: 1px solid #1e2130;
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    #user-input {
+      flex: 1;
+      background: #1e2130;
+      border: 1px solid #2d3148;
+      border-radius: 12px;
+      color: #e8eaf0;
+      font-size: 0.92rem;
+      padding: 10px 14px;
+      resize: none;
+      outline: none;
+      min-height: 44px;
+      max-height: 140px;
+      line-height: 1.5;
+      transition: border-color 0.15s;
+    }
+
+    #user-input:focus { border-color: #4f46e5; }
+    #user-input::placeholder { color: #4b5563; }
+
+    #send-btn {
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 10px 18px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+      height: 44px;
+      flex-shrink: 0;
+    }
+
+    #send-btn:hover  { background: #4338ca; }
+    #send-btn:disabled { background: #2d3148; color: #6b7280; cursor: not-allowed; }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Embedding Demo — Claude Sonnet</h1>
+  <label class="rag-toggle">
+    <input type="checkbox" id="rag-toggle" checked />
+    RAG (Pinecone search)
+  </label>
+  <span id="model-label">anthropic/claude-sonnet-4-5</span>
+</header>
+
+<div id="lightbox"><img id="lightbox-img" src="" alt=""/></div>
+
+<div id="messages">
+  <div class="msg assistant">
+    <span class="label">assistant</span>
+    <div class="bubble">Hi! Ask me anything. I'll search your Pinecone knowledge base (text, images, videos) and answer using Claude Sonnet.</div>
+  </div>
+</div>
+
+<div id="input-area">
+  <textarea id="user-input" placeholder="Type a message… (Enter to send, Shift+Enter for new line)" rows="1"></textarea>
+  <button id="send-btn">Send</button>
+</div>
+
+<script>
+  const messagesEl = document.getElementById('messages');
+  const inputEl    = document.getElementById('user-input');
+  const sendBtn    = document.getElementById('send-btn');
+  const ragToggle  = document.getElementById('rag-toggle');
+
+  // Conversation history for multi-turn context
+  const history = [];
+
+  function scrollBottom() {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function addMessage(role, content, sources = []) {
+    const msg = document.createElement('div');
+    msg.className = `msg ${role}`;
+
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = role;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.textContent = content;
+
+    msg.appendChild(label);
+    msg.appendChild(bubble);
+
+    if (sources && sources.length > 0) {
+      const src = document.createElement('div');
+      src.className = 'sources';
+      src.innerHTML = `<strong>Sources retrieved from Pinecone</strong>`;
+      sources.forEach(s => {
+        const item = document.createElement('div');
+        item.className = 'source-item';
+        item.innerHTML = `
+          <span class="badge ${s.type}">${s.type}</span>
+          <span>${s.title} <span style="color:#4b5563">(${s.score})</span></span>
+        `;
+        src.appendChild(item);
+
+        if (s.type === 'image' && s.url) {
+          const img = document.createElement('img');
+          img.src = s.url;
+          img.className = 'source-image';
+          img.alt = s.title;
+          img.onclick = () => {
+            document.getElementById('lightbox-img').src = s.url;
+            document.getElementById('lightbox').classList.add('open');
+          };
+          src.appendChild(img);
+        }
+      });
+      msg.appendChild(src);
+    }
+
+    messagesEl.appendChild(msg);
+    scrollBottom();
+    return msg;
+  }
+
+  function addTyping() {
+    const msg = document.createElement('div');
+    msg.className = 'msg assistant typing';
+    msg.innerHTML = '<span class="label">assistant</span><div class="bubble">Thinking…</div>';
+    messagesEl.appendChild(msg);
+    scrollBottom();
+    return msg;
+  }
+
+  async function send() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+    sendBtn.disabled = true;
+
+    addMessage('user', text);
+    history.push({ role: 'user', content: text });
+
+    const typing = addTyping();
+
+    try {
+      const res = await fetch('/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: history, use_rag: ragToggle.checked }),
+      });
+
+      const data = await res.json();
+      typing.remove();
+
+      if (data.error) {
+        addMessage('assistant', '⚠️ Error: ' + data.error);
+        sendBtn.disabled = false;
+        inputEl.focus();
+        return;
+      }
+
+      addMessage('assistant', data.reply, data.sources);
+      history.push({ role: 'assistant', content: data.reply });
+
+    } catch (err) {
+      typing.remove();
+      addMessage('assistant', 'Error: ' + err.message);
+    }
+
+    sendBtn.disabled = false;
+    inputEl.focus();
+  }
+
+  sendBtn.addEventListener('click', send);
+
+  inputEl.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+
+  // Auto-resize textarea
+  // Close lightbox on click
+  document.getElementById('lightbox').addEventListener('click', () => {
+    document.getElementById('lightbox').classList.remove('open');
+  });
+
+  inputEl.addEventListener('input', () => {
+    inputEl.style.height = 'auto';
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 140) + 'px';
+  });
+</script>
+</body>
+</html>

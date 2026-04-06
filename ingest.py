@@ -11,12 +11,37 @@ Usage examples:
 """
 
 import argparse
+import base64
 import hashlib
-import os
 from pathlib import Path
 
+from openai import OpenAI
+
+from config import OPENROUTER_API_KEY, OPENROUTER_BASE_URL
 from embedder import embed_text, embed_image, embed_video
 from pinecone_client import get_or_create_index, upsert_vector
+
+_vision = OpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL)
+VISION_MODEL = "google/gemini-2.0-flash-001"
+
+
+def describe_image(fp: Path) -> str:
+    """Use a vision LLM via OpenRouter to generate a description of an image."""
+    with open(fp, "rb") as f:
+        data = base64.standard_b64encode(f.read()).decode()
+    mime = "image/jpeg" if fp.suffix.lower() in (".jpg", ".jpeg") else "image/png"
+    response = _vision.chat.completions.create(
+        model=VISION_MODEL,
+        max_tokens=512,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}},
+                {"type": "text", "text": "Describe this image in detail. Include subjects, objects, setting, colors, mood, and any notable details. Be specific and thorough."},
+            ],
+        }],
+    )
+    return response.choices[0].message.content.strip()
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -66,12 +91,16 @@ def ingest_images(source: str, index):
 
     for fp in files:
         print(f"[IMAGE] {fp.name}")
+        print(f"  Generating description via Gemini Vision...")
+        description = describe_image(fp)
+        print(f"  Description: {description[:120]}...")
         embedding = embed_image(str(fp))
         upsert_vector(index, file_id(str(fp)), embedding, {
             "type": "image",
             "source": str(fp),
             "title": fp.stem,
             "filename": fp.name,
+            "description": description,
         })
         print(f"  upserted")
 
